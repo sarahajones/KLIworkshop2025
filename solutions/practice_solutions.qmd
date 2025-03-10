@@ -1,0 +1,472 @@
+---
+title: "Practice"
+subtitle: "Workshop Best Practices for Reproducible Data Processing and Analysis using R and Quarto"
+author: "S.A. & S.P."
+date: today
+format:
+  html:
+    theme:
+      light: flatly
+      dark:  darkly
+    fontsize: .9em
+    page-layout: full
+    toc: true
+    toc-depth: 4
+    toc-location: left
+    toc-title: Contents
+    toc_float:
+       collapsed: false
+    number-sections: false
+    number-depth: 4
+    grid:
+      sidebar-width: 150px
+      body-width: 1500px
+      margin-width: 50px
+      gutter-width: 1.5rem
+    smooth-scroll: true
+    highlight-style: github
+    date-format: "D MMMM YYYY"
+    code-fold: false
+    code-summary: "Show the code"
+    code-overflow: wrap
+    code-tools: true
+
+execute:
+  echo: true
+  warning: false
+  output: true
+  error: false
+embed-resources: true
+fig-responsive: false
+standalone: true
+---
+
+Writing robust code is essential, especially when working with complex data, collaborating with others, or ensuring long-term reproducibility.
+
+# Setting Up
+
+```{r}
+#| output: false
+
+# 1. 
+# For this code block, it would be preferable not to print the output, 
+# just show the code. How can we configure that?
+
+
+# 2.
+# We want to set the working directory to our folder automatically.
+# How can we do that without hardcoding the path?
+# Don't forget to comment out this line of code to ensure proper rendering.
+
+#...............................................................................
+#setwd(dirname(rstudioapi::getActiveDocumentContext()$path))                 
+#...............................................................................
+
+
+# 3.
+# Now, we want to install the libraries, but only the missing ones.
+# We also want to load all the libraries we will use in this script.
+# How we can do that without repeating the same code?
+# We need the package qualtRics, readr, dplyr, ggplot2, janitor, lme4, 
+# kableExtra, report, visdat
+
+# ...............................................................................
+# Load packages
+list.of.packages <- c(
+  "qualtRics",         # Read files obtained through Qualtrics
+  "readr",             # Write csv files
+  "dplyr",             # Manipulate data during preprocessing
+  "janitor",           # Clean and manage data during preprocessing
+  "ggplot2",           # Create plots
+  "kableExtra",        # Display tables in HTML format
+  "report",            # Generate advanced reporting for linear models
+  "visdat",            # Visualize missing data
+  "plotly"             # Generate interactive plots
+)
+
+new.packages <-
+  list.of.packages[!(list.of.packages %in% installed.packages()[, "Package"])]
+if (length(new.packages))
+  # Install any new packages
+  install.packages(new.packages)
+# Library in all packages
+lapply(list.of.packages, require, character.only = TRUE)
+rm(list.of.packages, new.packages)
+# ...............................................................................
+
+
+# 4.
+# We want to disable scientific notation for easier readability of numbers.
+# What can we do?
+
+#................................................................................
+options(scipen = 999)
+#................................................................................
+
+
+# We advice you to keep these lines of code in your script:
+
+# Set the console output width to improve the readability of printed data.
+options("width" = 900)
+
+# Avoid displaying 'NA' values in tables generated with knitr::kable.
+options(knitr.kable.NA = '')
+
+```
+
+
+## Load Data
+
+```{r}
+#| output: false
+
+# 5. 
+# For this code block, it would be preferable not to print the output, 
+# just show the code. How can we configure that?
+
+
+# If you prefer to use .csv, qualtRics package can be very useful
+# to read the data.
+
+# Load the data from Lab UK
+raw_data_uk <- qualtRics::read_survey("practice_data_uk.csv")
+
+# Load the data from Lab US
+raw_data_us <- qualtRics::read_survey("practice_data_us.csv")
+
+
+# 6.
+# These dataframes are Qualtrics copies of the same survey, 
+# so they should have the same columns. But do they?
+
+#...............................................................................
+ncol(raw_data_uk)
+ncol(raw_data_us)
+#...............................................................................
+
+```
+
+
+## Merge Data
+
+```{r}
+
+# Merge the data from the two labs.
+data_merged <- dplyr::full_join(raw_data_uk, raw_data_us)
+
+# 7.
+# Let's check if the data was merged correctly. What can we do?
+# (don't forget to remove the unnecessary variables after the check)
+
+#...............................................................................
+# Row sum of the individual dataframes
+nrow(raw_data_uk) + nrow(raw_data_us)
+
+# If the value below is the same as the row sum, the sanity check passed.
+nrow(data_merged)
+
+# Columns' names from the individual dataframes merged 
+# to compare with columns' names from data_merged
+data_merged_col <- names(data_merged)
+all_col <- unique(c(names(raw_data_uk),
+                        names(raw_data_us)))
+
+# Columns missing in data_merged. If empty, the sanity check passed.
+setdiff(all_col, data_merged_col)
+
+# Columns in excess in data_merged. If empty, the sanity check passed.
+setdiff(data_merged_col, all_col)
+
+rm("all_col", "data_merged_col")
+#...............................................................................
+
+```
+
+
+## Ethical Compliance Check
+
+```{r}
+
+# The minimum age to participate in the survey was 18 years old.  
+# We need to check for underage participants in our data 
+# and wipe out their responses except their ResponseID.
+
+min(data_merged$age)
+
+
+# We need to verify if any participant wrote hateful content or identifiable  
+# information in the text entries of the survey. If so, we need to remove those 
+# participants.
+
+unique(data_merged$sex_55_TEXT)
+
+
+```
+
+
+## Save Public Data
+
+```{r}
+
+# 8.
+# Now that we have verified the raw data is ready to be shared,  
+# we need to save it as a public data version. How can we do that?
+
+#...............................................................................
+write_csv(data_merged, "01_public_data.csv")
+save(data_merged, file = "01_public_data.Rda")
+#...............................................................................
+
+# Let the reader have a overview of the data structure
+str(data_merged)
+
+```
+
+
+# Create a Codebook
+
+```{r}
+
+# If we are going to publish the public data,  
+# we should generate the codebook with the current variable names.
+
+codebook <- qualtRics::extract_colmap(raw_data_uk) %>%
+  # Keep only relevant columns
+  dplyr::select(qname, description) %>%
+  # Rename for clarity
+  dplyr::rename(variable = qname) 
+
+write.csv(codebook, "codebook_structure.csv")
+
+rm(codebook)
+```
+
+
+# Data Preprocessing
+
+```{r}
+
+data_cleaned <- data_merged
+
+
+# 9.
+# Let's clean the data before we start the analysis.
+# We should standardize the column names (e.g., `Duration (in seconds)`) to
+# follow the snake_case convention. How can we do that?
+
+#...............................................................................
+data_cleaned <- janitor::clean_names(data_cleaned)
+#...............................................................................
+
+
+
+# 10.
+# All items had forced response feature activated. But are we sure?
+
+#...............................................................................
+vis_miss(data_cleaned)
+#...............................................................................
+
+
+
+# 11.
+# Now let's check the variable age.
+# Is there something wrong with it?
+
+mean(data_cleaned$age)
+
+#...............................................................................
+# Always check the structure of the variable.
+# There are 11 answers reporting an age of 366 years. 
+# Something is wrong, probably the recoding of the options.
+
+table(data_cleaned$age)
+
+# Let's recode the variable age to the correct values.
+data_cleaned$age <- ifelse(data_cleaned$age == 366, 36, data_cleaned$age)
+#...............................................................................
+
+
+
+# 12.
+# Let's reverse the "pray" variable. 
+# Currently, the scale is 1 = Several times a days
+# to 8 = Never, practically never.
+# How can we conduct this operation in a robust way?
+
+#...............................................................................
+table(data_cleaned$pray)
+
+data_cleaned$pray <- 9 - data_cleaned$pray
+
+table(data_cleaned$pray)
+#...............................................................................
+
+
+# 13.
+# We want to create an index by averaging the FSES items for each participant. 
+# How can we do this in a robust way?
+
+#...............................................................................
+data_cleaned$fses_avg <- rowMeans(data_cleaned[, c("fses1", "fses2", "fses3", "fses4", "fses5", "fses6")], na.rm = TRUE)
+
+# Manually compute the index for one participant and compare it
+(data_cleaned$fses1[1] + data_cleaned$fses2[1] + data_cleaned$fses3[1] + data_cleaned$fses4[1] + data_cleaned$fses5[1] + data_cleaned$fses6[1])/6
+
+data_cleaned$fses_avg[1]
+
+#...............................................................................
+
+
+
+
+```
+
+
+# Save the Cleaned Data
+
+```{r}
+
+# 14.
+# Now that we have cleaned the raw data,  
+# we need to save it as a cleaned data version. How can we do that?
+
+#...............................................................................
+write_csv(data_cleaned, "02_data_cleaned.csv")
+save(data_cleaned, file = "02_data_cleaned.Rda")
+#...............................................................................
+
+```
+
+
+# Data Visualization
+
+```{r}
+
+# 15.
+# We want to create a tabset panel with two separators and fold the code.
+# How can we do that? 
+
+```
+
+## Financial Self-Efficacy
+
+::: {.panel-tabset}
+
+### by Sex
+
+```{r}
+#| code-fold: TRUE
+
+# Filter data to keep only sex values 0 and 1
+data_filtered <- subset(data_cleaned, sex %in% c(0, 1))
+
+# Convert sex to a factor with labels
+data_filtered$sex_label <- factor(data_filtered$sex,
+                                  levels = c(0, 1),
+                                  labels = c("Male", "Female"))
+
+# Create the ggplot
+p_fses_sex <- ggplot2::ggplot(data_filtered, aes(x = sex_label, 
+                                        y = fses_avg, 
+                                        fill = sex_label)) +
+  geom_violin(trim = FALSE, alpha = 0.5) +
+  geom_boxplot(width = 0.1, fill = "white", outlier.shape = NA) +
+  labs(x = "Sex", 
+       y = "Financial Self-Efficacy", 
+       title = "Financial Self-Efficacy by Sex") +
+  theme_minimal() +
+  scale_fill_manual(values = c("#43CD80", "#EE6363")) +
+  theme(legend.position = "none")
+
+# Convert to interactive ggplotly
+plotly::ggplotly(p_fses_sex)
+
+```
+
+### by Age
+```{r}
+#| code-fold: TRUE
+
+# Create the ggplot
+p_fses_age <- ggplot2::ggplot(data_filtered, aes(x = age, y = fses_avg)) +
+  geom_point(alpha = 0.5, color = "#00BFFF") + 
+  geom_smooth(method = "lm", color = "#0000CD", se = FALSE) +
+  labs(x = "Age", 
+       y = "Financial Self-Efficacy", 
+       title = "Financial Self-Efficacy by Age") +
+  theme_minimal()
+
+# Convert to interactive ggplotly
+plotly::ggplotly(p_fses_age)
+
+```
+
+:::
+
+
+# Data Analysis
+
+## Model: Financial Self-Efficacy by Sex
+```{r}
+
+m_fses_sex <- stats::lm(fses_avg ~ sex, data = data_filtered)
+
+# Report the results
+knitr::kable(report_table(m_fses_sex))
+
+# Report the effect size
+effectsize::cohens_d(fses_avg ~ sex, data = data_filtered)
+
+```
+
+### Check the Assumptions
+```{r}
+
+m_fses_sex_fit <- performance::check_model(m_fses_sex)
+m_fses_sex_fit
+
+```
+
+
+# Information About the R Session
+
+```{r}
+
+sessionInfo()
+
+```
+
+
+# Resources for you to explore later
+
+## Configure Qualtrics API to extract data directly as Rda file
+```{r}
+#| eval: false
+
+# You only need to run this code once on your computer to set it up permanently.
+# There is no need to include this code in all scripts.
+# Do not share your API token with anyone.
+
+qualtrics_api_credentials(
+  # check your Qualtrics account settings to get your API key
+  api_key = "<YOUR-QUALTRICS_API_KEY>", 
+  # replace by your university base url
+  base_url = "https://vuamsterdam.eu.qualtrics.com/",
+  install = TRUE)
+
+
+# Then you only need the following code to access your surveys
+
+# Load the data from Qualtrics
+raw_data <- fetch_survey(
+    # replace by your survey ID "SV_XXXXXX". 
+    # you can see your survey ID in the data collection link.
+    surveyID = "<YOUR-SURVEY-ID>",
+    # if TRUE it will return text of answer choices, instead of recoded values.
+    label = FALSE,
+    convert = FALSE,
+    include_display_order = FALSE)
+
+```
+
