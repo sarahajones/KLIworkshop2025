@@ -1,5 +1,5 @@
 # Best Practices for Reproducible Data Processing and Analysis using R and Quarto  
-**Kurt Lewin Institute | 2024-2025**  
+**<a href="https://kli.fss.uu.nl/courses/215">Kurt Lewin Institute | 2024-2025</a>**  
 
 ## About the Workshop  
 Join us for a beginner-friendly workshop on **reproducible data processing and analysis**, where you'll learn best practices for creating, documenting, and sharing your scripts that ensure computational reproducibility and adherence to open science principles. The primary goal of reproducible data processing and analysis is to enable others to independently replicate your results by using your code and data. However, reproducibility alone doesn't guarantee the correctness of your results. 
